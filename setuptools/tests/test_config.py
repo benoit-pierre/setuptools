@@ -1,8 +1,12 @@
+# -*- coding: UTF-8 -*-
+from __future__ import unicode_literals
+
 import contextlib
 import pytest
 from distutils.errors import DistutilsOptionError, DistutilsFileError
 from setuptools.dist import Distribution
 from setuptools.config import ConfigHandler, read_configuration
+from setuptools.tests import is_ascii
 
 
 class ErrConfigHandler(ConfigHandler):
@@ -26,7 +30,7 @@ def fake_env(tmpdir, setup_cfg, setup_py=None):
 
     tmpdir.join('setup.py').write(setup_py)
     config = tmpdir.join('setup.cfg')
-    config.write(setup_cfg)
+    config.write(setup_cfg.encode('utf-8'), mode='wb')
 
     package_dir, init_file = make_package_dir('fake_package', tmpdir)
 
@@ -287,6 +291,27 @@ class TestMetadata:
         )
         with get_dist(tmpdir) as dist:
             assert set(dist.metadata.classifiers) == expected
+
+    def test_no_interpolation(self, tmpdir):
+        fake_env(
+            tmpdir,
+            '[metadata]\n'
+            'description = %(message)s\n'
+        )
+        with get_dist(tmpdir) as dist:
+            assert dist.metadata.description == '%(message)s'
+
+    skip_if_not_ascii = pytest.mark.skipif(not is_ascii, reason='Test not supported with this locale')
+
+    @skip_if_not_ascii
+    def test_non_ascii(self, tmpdir):
+        fake_env(
+            tmpdir,
+            '[metadata]\n'
+            'description = éàïôñ\n'
+        )
+        with get_dist(tmpdir) as dist:
+            assert dist.metadata.description == 'éàïôñ'
 
 
 class TestOptions:

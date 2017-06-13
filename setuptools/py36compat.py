@@ -1,7 +1,9 @@
+import io
 import sys
 from distutils.errors import DistutilsOptionError
 from distutils.util import strtobool
 from distutils.debug import DEBUG
+from setuptools.extern import six
 
 
 class Distribution_parse_config_files:
@@ -13,10 +15,10 @@ class Distribution_parse_config_files:
     as implemented in distutils.
     """
     def parse_config_files(self, filenames=None):
-        from configparser import ConfigParser
+        from setuptools.extern.six.moves.configparser import ConfigParser
 
         # Ignore install directory options if we have a venv
-        if sys.prefix != sys.base_prefix:
+        if six.PY3 and sys.prefix != sys.base_prefix:
             ignore_options = [
                 'install-base', 'install-platbase', 'install-lib',
                 'install-platlib', 'install-purelib', 'install-headers',
@@ -33,18 +35,22 @@ class Distribution_parse_config_files:
         if DEBUG:
             self.announce("Distribution.parse_config_files():")
 
-        parser = ConfigParser(interpolation=None)
+        parser = ConfigParser()
         for filename in filenames:
             if DEBUG:
                 self.announce("  reading %s" % filename)
-            parser.read(filename)
+            with io.open(filename, encoding='utf-8') as fp:
+                if six.PY3:
+                    parser.read_file(fp)
+                else:
+                    parser.readfp(fp)
             for section in parser.sections():
                 options = parser.options(section)
                 opt_dict = self.get_option_dict(section)
 
                 for opt in options:
                     if opt != '__name__' and opt not in ignore_options:
-                        val = parser.get(section,opt)
+                        val = parser.get(section,opt,raw=True)
                         opt = opt.replace('-', '_')
                         opt_dict[opt] = (filename, val)
 
@@ -67,12 +73,6 @@ class Distribution_parse_config_files:
                         setattr(self, opt, val)
                 except ValueError as msg:
                     raise DistutilsOptionError(msg)
-
-
-if sys.version_info < (3,):
-    # Python 2 behavior is sufficient
-    class Distribution_parse_config_files:
-        pass
 
 
 if False:
