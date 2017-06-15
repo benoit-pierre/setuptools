@@ -109,7 +109,10 @@ class PEP420PackageFinder(PackageFinder):
 
 find_packages = PackageFinder.find
 
-setup = distutils.core.setup
+def setup(**attrs):
+    if 'install_setup_requires' not in attrs:
+        attrs['install_setup_requires'] = True
+    distutils.core.setup(**attrs)
 
 _Command = monkey.get_unpatched(distutils.core.Command)
 

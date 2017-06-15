@@ -317,12 +317,16 @@ class Distribution(Distribution_parse_config_files, _Distribution):
         self.dist_files = []
         self.src_root = attrs and attrs.pop("src_root", None)
         self.patch_missing_pkg_info(attrs)
+        self.dependency_links = []
+        self.setup_requires = []
         # Make sure we have any eggs needed to interpret 'attrs'
         if attrs is not None:
             self.dependency_links = attrs.pop('dependency_links', [])
             assert_string_list(self, 'dependency_links', self.dependency_links)
-        if attrs and 'setup_requires' in attrs:
-            self.fetch_build_eggs(attrs['setup_requires'])
+            self.setup_requires = attrs.pop('setup_requires', [])
+            assert_string_list(self, 'setup_requires', self.setup_requires)
+        if attrs and attrs.pop('install_setup_requires', False):
+            self.install_setup_requires()
         for ep in pkg_resources.iter_entry_points('distutils.setup_keywords'):
             vars(self).setdefault(ep.name, None)
         _Distribution.__init__(self, attrs)
@@ -415,6 +419,19 @@ class Distribution(Distribution_parse_config_files, _Distribution):
         """
         req.marker = None
         return req
+
+    def install_setup_requires(self):
+        # If dependency_links/setup_requires were not passed as
+        # arguments, then we need to honor setup.cfg's options.
+        if not self.dependency_links or not self.setup_requires:
+            dist = Distribution()
+            dist.parse_config_files()
+            if not self.setup_requires:
+                self.setup_requires = dist.setup_requires
+            if not self.dependency_links:
+                self.dependency_links = dist.dependency_links
+        if self.setup_requires:
+            self.fetch_build_eggs(self.setup_requires)
 
     def parse_config_files(self, filenames=None):
         """Parses configuration files from various levels

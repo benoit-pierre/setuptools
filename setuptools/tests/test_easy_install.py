@@ -381,7 +381,15 @@ class TestSetupRequires:
                 """))])
             yield dist_path
 
-    def test_setup_requires_overrides_version_conflict(self):
+    use_setup_cfg = (
+        (),
+        ('dependency_links',),
+        ('setup_requires',),
+        ('dependency_links', 'setup_requires'),
+    )
+
+    @pytest.mark.parametrize('use_setup_cfg', use_setup_cfg)
+    def test_setup_requires_overrides_version_conflict(self, use_setup_cfg):
         """
         Regression test for distribution issue 323:
         https://bitbucket.org/tarek/distribute/issues/323
@@ -397,7 +405,7 @@ class TestSetupRequires:
 
         with contexts.save_pkg_resources_state():
             with contexts.tempdir() as temp_dir:
-                test_pkg = create_setup_requires_package(temp_dir)
+                test_pkg = create_setup_requires_package(temp_dir, use_setup_cfg=use_setup_cfg)
                 test_setup_py = os.path.join(test_pkg, 'setup.py')
                 with contexts.quiet() as (stdout, stderr):
                     # Don't even need to install the package, just
@@ -408,7 +416,8 @@ class TestSetupRequires:
                 assert len(lines) > 0
                 assert lines[-1].strip(), 'test_pkg'
 
-    def test_setup_requires_override_nspkg(self):
+    @pytest.mark.parametrize('use_setup_cfg', use_setup_cfg)
+    def test_setup_requires_override_nspkg(self, use_setup_cfg):
         """
         Like ``test_setup_requires_overrides_version_conflict`` but where the
         ``setup_requires`` package is part of a namespace package that has
@@ -446,7 +455,8 @@ class TestSetupRequires:
                 """)
 
                 test_pkg = create_setup_requires_package(
-                    temp_dir, 'foo.bar', '0.2', make_nspkg_sdist, template)
+                    temp_dir, 'foo.bar', '0.2', make_nspkg_sdist, template,
+                    use_setup_cfg=use_setup_cfg)
 
                 test_setup_py = os.path.join(test_pkg, 'setup.py')
 
@@ -532,7 +542,7 @@ def make_sdist(dist_path, files):
 
 def create_setup_requires_package(path, distname='foobar', version='0.1',
                                   make_package=make_trivial_sdist,
-                                  setup_py_template=None):
+                                  setup_py_template=None, use_setup_cfg={}):
     """Creates a source tree under path for a trivial test package that has a
     single requirement in setup_requires--a tarball for that requirement is
     also created and added to the dependency_links argument.
@@ -549,8 +559,20 @@ def create_setup_requires_package(path, distname='foobar', version='0.1',
     }
 
     test_pkg = os.path.join(path, 'test_pkg')
-    test_setup_py = os.path.join(test_pkg, 'setup.py')
     os.mkdir(test_pkg)
+
+    if use_setup_cfg:
+        test_setup_cfg = os.path.join(test_pkg, 'setup.cfg')
+        test_setup_cfg_lines = ['[options]']
+        for name in use_setup_cfg:
+            value = test_setup_attrs.pop(name)
+            test_setup_cfg_lines.append('%s: %s' % (
+                name, ';'.join(value)
+            ))
+        with open(test_setup_cfg, 'w') as f:
+            f.write('\n'.join(test_setup_cfg_lines))
+
+    test_setup_py = os.path.join(test_pkg, 'setup.py')
 
     if setup_py_template is None:
         setup_py_template = DALS("""\
