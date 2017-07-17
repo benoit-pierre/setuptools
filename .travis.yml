@@ -32,7 +32,13 @@ jobs:
       distributions: release
       skip_upload_docs: true
 
-cache: pip
+# Note: we work-around this Travis bug:
+# https://github.com/travis-ci/travis-ci/issues/6732#issuecomment-315512108
+cache:
+  directories:
+    - $HOME/.cache/pip_cache
+before_cache: du -hs ~/.cache/pip_cache
+before_install: rm -rf ~/.cache/pip && ln -s pip_cache ~/.cache/pip
 
 install:
 # need tox to get started
