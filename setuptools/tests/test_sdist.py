@@ -18,7 +18,7 @@ import pkg_resources
 from setuptools.command.sdist import sdist
 from setuptools.command.egg_info import manifest_maker
 from setuptools.dist import Distribution
-from setuptools.tests import fail_on_ascii, py3_only
+from setuptools.tests import fail_on_ascii
 
 
 SETUP_ATTRS = {
@@ -190,7 +190,6 @@ class TestSdistTest:
 
         assert posix(filename) in u_contents
 
-    @py3_only
     @fail_on_ascii
     def test_write_manifest_allows_utf8_filenames(self):
         # Test for #303.
@@ -225,7 +224,6 @@ class TestSdistTest:
         # The filelist should have been updated as well
         assert u_filename in mm.filelist.files
 
-    @py3_only
     def test_write_manifest_skips_non_utf8_filenames(self):
         """
         Files that cannot be encoded to UTF-8 (specifically, those that
@@ -293,7 +291,6 @@ class TestSdistTest:
             filename = filename.decode('utf-8')
         assert filename in cmd.filelist.files
 
-    @py3_only
     def test_read_manifest_skips_non_utf8_filenames(self):
         # Test for #303.
         dist = Distribution(SETUP_ATTRS)
