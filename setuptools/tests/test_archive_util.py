@@ -8,6 +8,7 @@ from setuptools.extern import six
 import pytest
 
 from setuptools import archive_util
+from setuptools.tests import fail_on_ascii, py3_only
 
 
 @pytest.fixture
@@ -36,7 +37,9 @@ def tarfile_with_unicode(tmpdir):
     return str(target)
 
 
-@pytest.mark.xfail(reason="#710 and #712")
+# See #710 and #712.
+@py3_only
+@fail_on_ascii
 def test_unicode_files(tarfile_with_unicode, tmpdir):
     target = tmpdir / 'out'
     archive_util.unpack_archive(tarfile_with_unicode, six.text_type(target))
