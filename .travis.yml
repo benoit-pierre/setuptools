@@ -1,3 +1,4 @@
+dist: trusty
 sudo: false
 language: python
 jobs:
@@ -10,7 +11,7 @@ jobs:
   - python: 3.5
   - python: &latest_py3 3.6
   - python: nightly
-  - python: pypy
+  - python: pypy-5.4
   - python: *latest_py3
     env: LANG=C
   - python: *latest_py2
