@@ -6,6 +6,9 @@ environment:
     - PYTHON: "C:\\Python35-x64"
     - PYTHON: "C:\\Python27-x64"
 
+cache:
+  - C:\Users\appveyor\AppData\Local\pip
+
 install:
   # symlink python from a directory with a space
   - "mklink /d \"C:\\Program Files\\Python\" %PYTHON%"
