@@ -13,9 +13,9 @@ jobs:
   - python: nightly
   - python: pypy-5.4
   - python: *latest_py3
-    env: LANG=C
+    env: LANG=C LC_ALL=C
   - python: *latest_py2
-    env: LANG=C
+    env: LANG=C LC_ALL=C
   - stage: deploy (to PyPI for tagged commits)
     python: *latest_py3
     install: skip
@@ -45,6 +45,7 @@ install:
 - pip install tox
 
 # Output the env, to verify behavior
+- export PYTEST_ADDOPTS='-p no:sugar -n8'
 - env
 
 # update egg_info based on setup.py in checkout

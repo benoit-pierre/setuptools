@@ -1,5 +1,7 @@
 importlib; python_version<"2.7"
 mock
 pytest-flake8
+pytest-sugar
 pytest-virtualenv>=1.2.7
+pytest-xdist
 pytest>=3.0.2
