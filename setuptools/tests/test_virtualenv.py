@@ -9,6 +9,7 @@ from pytest_fixture_config import yield_requires_config
 import pytest_virtualenv
 
 from .textwrap import DALS
+from .test_easy_install import make_nspkg_sdist
 
 
 @yield_requires_config(pytest_virtualenv.CONFIG, ['virtualenv_executable'])
@@ -86,3 +87,66 @@ def test_dist_fetch_build_eggs(bare_virtualenv, tmpdir):
         'python fetch_eggs.py',
         'python check_eggs.py',
     )).format(tmpdir=tmpdir))
+
+def test_test_command_install_requirements(bare_virtualenv, tmpdir):
+    """
+    Check the test command will install all required dependencies.
+    """
+    bare_virtualenv.run(' && '.join((
+        'cd {source}',
+        'python setup.py develop',
+    )).format(source=SOURCE_DIR))
+    def sdist(distname, version):
+        dist_path = tmpdir.join('%s-%s.tar.gz' % (distname, version))
+        make_nspkg_sdist(str(dist_path), distname, version)
+        return dist_path
+    dependency_links = [
+        str(dist_path)
+        for dist_path in (
+            sdist('foobar', '2.4'),
+            sdist('bits', '4.2'),
+            sdist('bobs', '6.0'),
+            sdist('pieces', '0.6'),
+        )
+    ]
+    with tmpdir.join('setup.py').open('w') as fp:
+        fp.write(DALS(
+            '''
+            from setuptools import setup
+
+            setup(
+                dependency_links={dependency_links!r},
+                install_requires=[
+                    'barbazquux1; sys_platform in ""',
+                    'foobar==2.4',
+                ],
+                setup_requires=['bits==4.2'],
+                tests_require="""
+                    bobs==6.0
+                """,
+                extras_require={{
+                    'test': ['barbazquux2'],
+                    ':"" in sys_platform': 'pieces==0.6',
+                    ':python_version > "1"': """
+                        pieces
+                        foobar
+                    """,
+                }}
+            )
+            '''.format(dependency_links=dependency_links)))
+    with tmpdir.join('test.py').open('w') as fp:
+        fp.write(DALS(
+            '''
+            import foobar
+            import bits
+            import bobs
+            import pieces
+
+            open('success', 'w').close()
+            '''))
+    # Run test command for test package.
+    bare_virtualenv.run(' && '.join((
+        'cd {tmpdir}',
+        'python setup.py test -s test',
+    )).format(tmpdir=tmpdir))
+    assert tmpdir.join('success').check()
