@@ -109,7 +109,25 @@ class PEP420PackageFinder(PackageFinder):
 
 find_packages = PackageFinder.find
 
-setup = distutils.core.setup
+
+def _install_setup_requires(attrs):
+    keep = '''
+    dependency_links setup_requires
+    '''.split()
+    dist = Distribution(dict(
+        (k, v) for k, v in attrs.items() if k in keep
+    ))
+    # Honor setup.cfg's options.
+    dist.parse_config_files(ignore_option_errors=True)
+    if dist.setup_requires:
+        dist.fetch_build_eggs(dist.setup_requires)
+
+def setup(**attrs):
+    # Make sure we have any requirements needed to interpret 'attrs'.
+    _install_setup_requires(attrs)
+    return distutils.core.setup(**attrs)
+setup.__doc__ = distutils.core.setup.__doc__
+
 
 _Command = monkey.get_unpatched(distutils.core.Command)
 
