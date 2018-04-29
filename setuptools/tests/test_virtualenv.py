@@ -121,13 +121,13 @@ def test_pip_upgrade_from_source(pip_version, virtualenv):
     virtualenv.run('pip install --no-cache-dir --upgrade ' + sdist)
 
 
-def test_test_command_install_requirements(bare_virtualenv, tmpdir):
+def test_test_command_install_requirements(virtualenv, tmpdir):
     """
     Check the test command will install all required dependencies.
     """
-    bare_virtualenv.run(' && '.join((
-        'cd {source}',
-        'python setup.py develop',
+    virtualenv.run(' && '.join((
+        'python -m pip install pip wheel',
+        'python -m pip install --no-use-pep517 -e {source}',
     )).format(source=SOURCE_DIR))
 
     def sdist(distname, version):
@@ -179,7 +179,7 @@ def test_test_command_install_requirements(bare_virtualenv, tmpdir):
             open('success', 'w').close()
             '''))
     # Run test command for test package.
-    bare_virtualenv.run(' && '.join((
+    virtualenv.run(' && '.join((
         'cd {tmpdir}',
         'python setup.py test -s test',
     )).format(tmpdir=tmpdir))
