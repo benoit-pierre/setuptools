@@ -70,5 +70,9 @@ class MockServer(BaseHTTPServer.HTTPServer, threading.Thread):
         self.serve_forever()
 
     @property
+    def netloc(self):
+        return 'localhost:%s' % self.server_port
+
+    @property
     def url(self):
-        return 'http://localhost:%(server_port)s/' % vars(self)
+        return 'http://%s/' % self.netloc
