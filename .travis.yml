@@ -41,10 +41,13 @@ jobs:
 cache: pip
 
 install:
-# ensure we have recent pip/setuptools
-- pip install --upgrade pip setuptools
+
+# ensure we have recent pip/setuptools/wheel
+- pip install --disable-pip-version-check --upgrade pip
+- pip install --upgrade setuptools wheel
 # need tox to get started
-- pip install tox tox-venv
+- pip install --upgrade tox tox-venv
+- pip freeze --all
 
 # Output the env, to verify behavior
 - env
