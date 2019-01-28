@@ -65,7 +65,7 @@ def test_build_ext_config_handling(tmpdir_cwd):
             """)
     }
     build_files(files)
-    code, stderr = environment.run_setup_py(
-        cmd=['build'], data_stream=1,
+    code, output = environment.run_setup_py(
+        cmd=['build'], data_stream=(0, 2),
     )
-    assert code == 0, stderr
+    assert code == 0, '\nSTDOUT:\n%s\nSTDERR:\n%s' % output
