@@ -8,6 +8,10 @@ from setuptools.command.build_ext import build_ext, get_abi3_suffix
 from setuptools.dist import Distribution
 from setuptools.extension import Extension
 
+from . import environment
+from .files import build_files
+from .textwrap import DALS
+
 
 class TestBuildExt:
     def test_get_ext_filename(self):
@@ -43,3 +47,25 @@ class TestBuildExt:
             assert res.endswith('eggs.pyd')
         else:
             assert 'abi3' in res
+
+
+def test_build_ext_config_handling(tmpdir_cwd):
+    files = {
+        'setup.py': DALS("""
+            from setuptools import Extension, setup
+            setup(
+                name='foo',
+                version='0.0.0',
+                ext_modules=[Extension('foo', ['foo.c'])],
+            )"""),
+        'foo.c': '',
+        'setup.cfg': DALS("""
+            [build]
+            build-base = foo_build
+            """)
+    }
+    build_files(files)
+    code, stderr = environment.run_setup_py(
+        cmd=['build'], data_stream=1,
+    )
+    assert code == 0, stderr
