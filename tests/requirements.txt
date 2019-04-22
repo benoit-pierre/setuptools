@@ -1,8 +1,10 @@
 mock
+filelock
 pytest-flake8; python_version!="3.4"
 pytest-flake8<=1.0.0; python_version=="3.4"
 virtualenv>=13.0.0
 pytest-virtualenv>=1.2.7
+pytest-xdist
 pytest>=3.7
 wheel
 coverage>=4.5.1
