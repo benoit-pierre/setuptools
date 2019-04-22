@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import glob
 import os
 import sys
@@ -7,6 +8,8 @@ from pytest import yield_fixture
 from pytest_fixture_config import yield_requires_config
 
 import pytest_virtualenv
+
+import filelock
 
 from setuptools.extern import six
 
@@ -42,16 +45,23 @@ def bare_virtualenv():
 
 
 SOURCE_DIR = os.path.join(os.path.dirname(__file__), '../..')
+SOURCE_LOCK = os.path.join(SOURCE_DIR, '.lock')
+
+@contextmanager
+def locked_source_dir():
+    with filelock.FileLock(SOURCE_LOCK):
+        yield
 
 
 def test_clean_env_install(bare_virtualenv):
     """
     Check setuptools can be installed in a clean environment.
     """
-    bare_virtualenv.run(' && '.join((
-        'cd {source}',
-        'python setup.py install',
-    )).format(source=SOURCE_DIR))
+    with locked_source_dir():
+        bare_virtualenv.run(' && '.join((
+            'cd {source}',
+            'python setup.py install',
+        )).format(source=SOURCE_DIR))
 
 
 def _get_pip_versions():
@@ -107,12 +117,13 @@ def test_pip_upgrade_from_source(pip_version, virtualenv):
         'pip install -U wheel',
     ) + upgrade_pip).format(pip_version=pip_version))
     dist_dir = virtualenv.workspace
-    # Generate source distribution / wheel.
-    virtualenv.run(' && '.join((
-        'cd {source}',
-        'python setup.py -q sdist -d {dist}',
-        'python setup.py -q bdist_wheel -d {dist}',
-    )).format(source=SOURCE_DIR, dist=dist_dir))
+    with locked_source_dir():
+        # Generate source distribution / wheel.
+        virtualenv.run(' && '.join((
+            'cd {source}',
+            'python setup.py -q sdist -d {dist}',
+            'python setup.py -q bdist_wheel -d {dist}',
+        )).format(source=SOURCE_DIR, dist=dist_dir))
     sdist = glob.glob(os.path.join(dist_dir, '*.zip'))[0]
     wheel = glob.glob(os.path.join(dist_dir, '*.whl'))[0]
     # Then update from wheel.
@@ -125,10 +136,11 @@ def test_test_command_install_requirements(bare_virtualenv, tmpdir):
     """
     Check the test command will install all required dependencies.
     """
-    bare_virtualenv.run(' && '.join((
-        'cd {source}',
-        'python setup.py develop',
-    )).format(source=SOURCE_DIR))
+    with locked_source_dir():
+        bare_virtualenv.run(' && '.join((
+            'cd {source}',
+            'python setup.py develop',
+        )).format(source=SOURCE_DIR))
 
     def sdist(distname, version):
         dist_path = tmpdir.join('%s-%s.tar.gz' % (distname, version))
@@ -191,7 +203,8 @@ def test_no_missing_dependencies(bare_virtualenv):
     Quick and dirty test to ensure all external dependencies are vendored.
     """
     for command in ('upload',):  # sorted(distutils.command.__all__):
-        bare_virtualenv.run(' && '.join((
-            'cd {source}',
-            'python setup.py {command} -h',
-        )).format(command=command, source=SOURCE_DIR))
+        with locked_source_dir():
+            bare_virtualenv.run(' && '.join((
+                'cd {source}',
+                'python setup.py {command} -h',
+            )).format(command=command, source=SOURCE_DIR))

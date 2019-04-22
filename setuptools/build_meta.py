@@ -130,7 +130,7 @@ class _BuildMetaBackend(object):
 
         return requirements
 
-    def run_setup(self, setup_script='setup.py'):
+    def _run_setup(self, setup_script='setup.py'):
         # Note that we can reuse our build directory between calls
         # Correctness comes first, then optimization later
         __file__ = setup_script
@@ -140,6 +140,18 @@ class _BuildMetaBackend(object):
             code = f.read().replace(r'\r\n', r'\n')
 
         exec(compile(code, __file__, 'exec'), locals())
+
+    def run_setup(self, setup_script='setup.py'):
+        sys_path = list(sys.path)           # Save the original path
+        try:
+            script_dir = os.path.dirname(os.path.abspath(setup_script))
+            if script_dir in sys.path:
+                sys.path.remove(script_dir)
+            if os.getcwd() == script_dir and '' in sys.path:
+                sys.path.remove('')
+            return self._run_setup(setup_script=setup_script)
+        finally:
+            sys.path[:] = sys_path
 
     def get_requires_for_build_wheel(self, config_settings=None):
         config_settings = self._fix_config(config_settings)
@@ -234,7 +246,7 @@ class _BuildMetaLegacyBackend(_BuildMetaBackend):
 
         try:
             super(_BuildMetaLegacyBackend,
-                  self).run_setup(setup_script=setup_script)
+                  self)._run_setup(setup_script=setup_script)
         finally:
             # While PEP 517 frontends should be calling each hook in a fresh
             # subprocess according to the standard (and thus it should not be

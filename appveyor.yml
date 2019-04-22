@@ -29,7 +29,7 @@ test_script:
   - pip install --upgrade tox tox-venv virtualenv
   - pip freeze --all
   - python bootstrap.py
-  - tox -- --cov
+  - tox -- --cov -n3
 
 after_test:
     - tox -e coverage,codecov
