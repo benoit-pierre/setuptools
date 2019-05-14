@@ -29,7 +29,7 @@ test_script:
   - pip install --upgrade tox tox-venv
   - pip freeze --all
   - python bootstrap.py
-  - tox --notest
+  - tox -v --notest
   - 7z a tox_logs.zip .tox\*\log
   - ps: Push-AppveyorArtifact tox_logs.zip
   - tox -- --cov
