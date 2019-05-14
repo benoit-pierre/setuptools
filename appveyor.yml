@@ -30,7 +30,8 @@ test_script:
   - pip freeze --all
   - python bootstrap.py
   - tox --notest
-  - ps: Get-ChildItem .tox\*\log\*.log % { Push-AppveyorArtifact $_.FullName }
+  - zip -9 -r tox_logs.zip .tox\*\log
+  - ps: Push-AppveyorArtifact tox_logs.zip
   - tox -- --cov
 
 after_test:
