@@ -34,6 +34,9 @@ test_script:
 after_test:
     - tox -e coverage,codecov
 
+after_build:
+  - ps: Get-ChildItem .tox\*\log\*.log % { Push-AppveyorArtifact $_.FullName }
+
 version: '{build}'
 
 artifacts:
