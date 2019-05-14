@@ -30,7 +30,7 @@ test_script:
   - pip freeze --all
   - python bootstrap.py
   - tox --notest
-  - zip -9 -r tox_logs.zip .tox\*\log
+  - 7z a tox_logs.zip .tox\*\log
   - ps: Push-AppveyorArtifact tox_logs.zip
   - tox -- --cov
 
