@@ -32,35 +32,3 @@ class TestFindDistributions:
     def test_non_egg_dir_named_egg(self, target_dir):
         dists = pkg_resources.find_distributions(target_dir)
         assert not list(dists)
-
-    def test_standalone_egg_directory(self, project_dir, target_dir):
-        # install this distro as an unpacked egg:
-        args = [
-            sys.executable,
-            '-c', 'from setuptools.command.easy_install import main; main()',
-            '-mNx',
-            '-d', target_dir,
-            '--always-unzip',
-            project_dir,
-        ]
-        subprocess.check_call(args)
-        dists = pkg_resources.find_distributions(target_dir)
-        assert [dist.project_name for dist in dists] == ['my-test-package']
-        dists = pkg_resources.find_distributions(target_dir, only=True)
-        assert not list(dists)
-
-    def test_zipped_egg(self, project_dir, target_dir):
-        # install this distro as an unpacked egg:
-        args = [
-            sys.executable,
-            '-c', 'from setuptools.command.easy_install import main; main()',
-            '-mNx',
-            '-d', target_dir,
-            '--zip-ok',
-            project_dir,
-        ]
-        subprocess.check_call(args)
-        dists = pkg_resources.find_distributions(target_dir)
-        assert [dist.project_name for dist in dists] == ['my-test-package']
-        dists = pkg_resources.find_distributions(target_dir, only=True)
-        assert not list(dists)
