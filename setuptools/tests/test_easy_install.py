@@ -459,34 +459,6 @@ class TestDistutilsPackage:
 
 class TestSetupRequires:
 
-    def test_setup_requires_honors_fetch_params(self, mock_index, monkeypatch):
-        """
-        When easy_install installs a source distribution which specifies
-        setup_requires, it should honor the fetch parameters (such as
-        index-url, and find-links).
-        """
-        monkeypatch.setenv('PIP_RETRIES', '0')
-        monkeypatch.setenv('PIP_TIMEOUT', '0')
-        with contexts.quiet():
-            # create an sdist that has a build-time dependency.
-            with TestSetupRequires.create_sdist() as dist_file:
-                with contexts.tempdir() as temp_install_dir:
-                    with contexts.environment(PYTHONPATH=temp_install_dir):
-                        ei_params = [
-                            '--index-url', mock_index.url,
-                            '--exclude-scripts',
-                            '--install-dir', temp_install_dir,
-                            dist_file,
-                        ]
-                        with sandbox.save_argv(['easy_install']):
-                            # attempt to install the dist. It should
-                            # fail because it doesn't exist.
-                            with pytest.raises(SystemExit):
-                                easy_install_pkg.main(ei_params)
-        # there should have been one requests to the server
-        assert len(mock_index.requests) == 1
-        assert mock_index.requests[0].path == '/does-not-exist/'
-
     @staticmethod
     @contextlib.contextmanager
     def create_sdist():

@@ -6,6 +6,7 @@ import platform
 import distutils.command.install as orig
 
 import setuptools
+from setuptools.command.easy_install import easy_install
 
 # Prior to numpy 1.9, NumPy relies on the '_install' name, so provide it for
 # now. See https://github.com/pypa/setuptools/issues/199/
@@ -94,8 +95,6 @@ class install(orig.install):
         )
 
     def do_egg_install(self):
-
-        easy_install = self.distribution.get_command_class('easy_install')
 
         cmd = easy_install(
             self.distribution, args="x", root=self.root, record=self.record,
