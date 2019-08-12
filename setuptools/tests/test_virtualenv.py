@@ -43,8 +43,9 @@ def test_clean_env_install(bare_virtualenv):
     """
     Check setuptools can be installed in a clean environment.
     """
+    virtualenv = bare_virtualenv
     with locked_source_dir():
-        bare_virtualenv.run(('python', 'setup.py', 'install'), cd=SOURCE_DIR)
+        virtualenv.run((virtualenv.python, 'setup.py', 'install'), cd=SOURCE_DIR)
 
 
 def _get_pip_versions():
@@ -109,22 +110,22 @@ def test_pip_upgrade_from_source(pip_version, pip_only_virtualenv):
     to_update = ['wheel']
     if pip_version is not None:
         to_update.append(pip_version)
-    virtualenv.run(['python', '-m', 'pip', '--disable-pip-version-check',
+    virtualenv.run([virtualenv.python, '-m', 'pip', '--disable-pip-version-check',
                     'install', '--upgrade'] + to_update)
     dist_dir = virtualenv.workspace
     with locked_source_dir():
         # Generate source distribution / wheel.
-        virtualenv.run(('python', 'setup.py', '-q',
+        virtualenv.run((virtualenv.python, 'setup.py', '-q',
                         'sdist', '-d', dist_dir,
                         'bdist_wheel', '-d', dist_dir,
                        ), cd=SOURCE_DIR)
     sdist = glob.glob(os.path.join(dist_dir, '*.zip'))[0]
     wheel = glob.glob(os.path.join(dist_dir, '*.whl'))[0]
     # Then update from wheel.
-    virtualenv.run(('python', '-m', 'pip', '--disable-pip-version-check',
+    virtualenv.run((virtualenv.python, '-m', 'pip', '--disable-pip-version-check',
                     'install', wheel))
     # And finally try to upgrade from source.
-    virtualenv.run(('python', '-m', 'pip', '--disable-pip-version-check',
+    virtualenv.run((virtualenv.python, '-m', 'pip', '--disable-pip-version-check',
                     '--no-cache-dir', 'install', '--upgrade', sdist))
 
 
@@ -132,11 +133,11 @@ def test_test_command_install_requirements(virtualenv, tmpdir):
     """
     Check the test command will install all required dependencies.
     """
-    virtualenv.run(('python', '-m', 'pip', '--disable-pip-version-check',
+    virtualenv.run((virtualenv.python, '-m', 'pip', '--disable-pip-version-check',
                     'install', '--upgrade', 'pip'))
     with locked_source_dir():
         virtualenv.run((
-            'pip', '--disable-pip-version-check',
+            virtualenv.python, '-m', 'pip', '--disable-pip-version-check',
             'install', '--no-use-pep517', '-e', SOURCE_DIR,
         ))
 
@@ -189,7 +190,7 @@ def test_test_command_install_requirements(virtualenv, tmpdir):
             open('success', 'w').close()
             '''))
     # Run test command for test package.
-    virtualenv.run(('python', 'setup.py', 'test', '-s', 'test'),
+    virtualenv.run((virtualenv.python, 'setup.py', 'test', '-s', 'test'),
                    cd=str(tmpdir))
     assert tmpdir.join('success').check()
 
@@ -198,7 +199,8 @@ def test_no_missing_dependencies(bare_virtualenv):
     """
     Quick and dirty test to ensure all external dependencies are vendored.
     """
+    virtualenv = bare_virtualenv
     for command in ('upload',):  # sorted(distutils.command.__all__):
         with locked_source_dir():
-            bare_virtualenv.run(('python', 'setup.py', command, '-h'),
-                                cd=SOURCE_DIR)
+            virtualenv.run((virtualenv.python, 'setup.py', command, '-h'),
+                           cd=SOURCE_DIR)
