@@ -69,12 +69,15 @@ def _get_pip_versions():
         'pip==9.0.3',
         'pip==10.0.1',
         'pip==18.1',
-        'pip==19.2.2',
+        'pip==19.1.1',
     ]
 
-    # Pip's master dropped support for 3.4.
+    # pip>19.1.1 dropped support for 3.4.
     if not six.PY34:
-        network_versions.append('https://github.com/pypa/pip/archive/master.zip')
+        network_versions.extend((
+            'pip==19.2.2',
+            'https://github.com/pypa/pip/archive/master.zip',
+        ))
 
     versions = [None] + [
         pytest.param(v, **({} if network else {'marks': pytest.mark.skip}))
@@ -118,10 +121,11 @@ def test_pip_upgrade_from_source(pip_version, pip_only_virtualenv):
     sdist = glob.glob(os.path.join(dist_dir, '*.zip'))[0]
     wheel = glob.glob(os.path.join(dist_dir, '*.whl'))[0]
     # Then update from wheel.
-    virtualenv.run(('pip', '--disable-pip-version-check', 'install', wheel))
+    virtualenv.run(('python', '-m', 'pip', '--disable-pip-version-check',
+                    'install', wheel))
     # And finally try to upgrade from source.
-    virtualenv.run(('pip', '--disable-pip-version-check', '--no-cache-dir',
-                    'install', '--upgrade', sdist))
+    virtualenv.run(('python', '-m', 'pip', '--disable-pip-version-check',
+                    '--no-cache-dir', 'install', '--upgrade', sdist))
 
 
 def test_test_command_install_requirements(virtualenv, tmpdir):
