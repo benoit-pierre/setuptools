@@ -99,12 +99,6 @@ def test_pbr(install_context):
                  'pbr', 'core.py')
 
 
-@pytest.mark.xfail
-def test_python_novaclient(install_context):
-    _install_one('python-novaclient', install_context,
-                 'novaclient', 'base.py')
-
-
 def test_pyuri(install_context):
     """
     Install the pyuri package (version 0.3.1 at the time of writing).
