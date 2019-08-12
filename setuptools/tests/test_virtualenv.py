@@ -106,7 +106,7 @@ def test_pip_upgrade_from_source(pip_version, pip_only_virtualenv):
     to_update = ['wheel']
     if pip_version is not None:
         to_update.append(pip_version)
-    virtualenv.run(['pip', '--disable-pip-version-check',
+    virtualenv.run(['python', '-m', 'pip', '--disable-pip-version-check',
                     'install', '--upgrade'] + to_update)
     dist_dir = virtualenv.workspace
     with locked_source_dir():
@@ -128,6 +128,8 @@ def test_test_command_install_requirements(virtualenv, tmpdir):
     """
     Check the test command will install all required dependencies.
     """
+    virtualenv.run(('python', '-m', 'pip', '--disable-pip-version-check',
+                    'install', '--upgrade', 'pip'))
     with locked_source_dir():
         virtualenv.run((
             'pip', '--disable-pip-version-check',
@@ -183,7 +185,8 @@ def test_test_command_install_requirements(virtualenv, tmpdir):
             open('success', 'w').close()
             '''))
     # Run test command for test package.
-    virtualenv.run(('python', 'setup.py', 'test', '-s', 'test'), cd=tmpdir)
+    virtualenv.run(('python', 'setup.py', 'test', '-s', 'test'),
+                   cd=str(tmpdir))
     assert tmpdir.join('success').check()
 
 
