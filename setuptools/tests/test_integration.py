@@ -76,6 +76,7 @@ def install_context(request, tmpdir, monkeypatch):
 def _install_one(requirement, cmd, pkgname, modulename):
     cmd.args = [requirement]
     cmd.ensure_finalized()
+    cmd.zip_ok = False
     cmd.run()
     target = cmd.install_dir
     dest_path = glob.glob(os.path.join(target, pkgname + '*.egg'))
@@ -88,7 +89,6 @@ def test_stevedore(install_context):
                  'stevedore', 'extension.py')
 
 
-@pytest.mark.xfail
 def test_virtualenvwrapper(install_context):
     _install_one('virtualenvwrapper', install_context,
                  'virtualenvwrapper', 'hook_loader.py')
