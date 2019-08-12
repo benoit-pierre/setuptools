@@ -65,9 +65,9 @@ script:
     ( # Run testsuite.
       if [ -z "$DISABLE_COVERAGE" ]
       then
-        tox -- --cov -n4
+        tox -- --cov -n4 --durations=10
       else
-        tox -- -n4
+        tox -- -n4 --durations=10
       fi
     )
 
