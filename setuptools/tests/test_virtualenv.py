@@ -17,20 +17,6 @@ from .textwrap import DALS
 from .test_easy_install import make_nspkg_sdist
 
 
-@pytest.fixture(autouse=True)
-def pytest_virtualenv_works(virtualenv):
-    """
-    pytest_virtualenv may not work. if it doesn't, skip these
-    tests. See #1284.
-    """
-    venv_prefix = virtualenv.run(
-        'python -c "import sys; print(sys.prefix)"',
-        capture=True,
-    ).strip()
-    if venv_prefix == sys.prefix:
-        pytest.skip("virtualenv is broken (see pypa/setuptools#1284)")
-
-
 @yield_requires_config(pytest_virtualenv.CONFIG, ['virtualenv_executable'])
 @yield_fixture(scope='function')
 def bare_virtualenv():
@@ -58,10 +44,7 @@ def test_clean_env_install(bare_virtualenv):
     Check setuptools can be installed in a clean environment.
     """
     with locked_source_dir():
-        bare_virtualenv.run(' && '.join((
-            'cd {source}',
-            'python setup.py install',
-        )).format(source=SOURCE_DIR))
+        bare_virtualenv.run(('python', 'setup.py', 'install'), cd=SOURCE_DIR)
 
 
 def _get_pip_versions():
@@ -86,7 +69,7 @@ def _get_pip_versions():
         'pip==9.0.3',
         'pip==10.0.1',
         'pip==18.1',
-        'pip==19.0.1',
+        'pip==19.2.2',
     ]
 
     # Pip's master dropped support for 3.4.
@@ -101,35 +84,44 @@ def _get_pip_versions():
     return versions
 
 
+@yield_requires_config(pytest_virtualenv.CONFIG, ['virtualenv_executable'])
+@yield_fixture(scope='function')
+def pip_only_virtualenv():
+    """ Bare virtualenv (no pip/setuptools/wheel).
+    """
+    with pytest_virtualenv.VirtualEnv(args=(
+        '--no-wheel',
+        '--no-setuptools',
+    )) as venv:
+        yield venv
+
+
 @pytest.mark.parametrize('pip_version', _get_pip_versions())
-def test_pip_upgrade_from_source(pip_version, virtualenv):
+def test_pip_upgrade_from_source(pip_version, pip_only_virtualenv):
     """
     Check pip can upgrade setuptools from source.
     """
-    # Install pip/wheel, and remove setuptools (as it
-    # should not be needed for bootstraping from source)
-    if pip_version is None:
-        upgrade_pip = ()
-    else:
-        upgrade_pip = ('python -m pip install -U {pip_version} --retries=1',)
-    virtualenv.run(' && '.join((
-        'pip uninstall -y setuptools',
-        'pip install -U wheel',
-    ) + upgrade_pip).format(pip_version=pip_version))
+    virtualenv = pip_only_virtualenv
+    # Install/update wheel/pip.
+    to_update = ['wheel']
+    if pip_version is not None:
+        to_update.append(pip_version)
+    virtualenv.run(['pip', '--disable-pip-version-check',
+                    'install', '--upgrade'] + to_update)
     dist_dir = virtualenv.workspace
     with locked_source_dir():
         # Generate source distribution / wheel.
-        virtualenv.run(' && '.join((
-            'cd {source}',
-            'python setup.py -q sdist -d {dist}',
-            'python setup.py -q bdist_wheel -d {dist}',
-        )).format(source=SOURCE_DIR, dist=dist_dir))
+        virtualenv.run(('python', 'setup.py', '-q',
+                        'sdist', '-d', dist_dir,
+                        'bdist_wheel', '-d', dist_dir,
+                       ), cd=SOURCE_DIR)
     sdist = glob.glob(os.path.join(dist_dir, '*.zip'))[0]
     wheel = glob.glob(os.path.join(dist_dir, '*.whl'))[0]
     # Then update from wheel.
-    virtualenv.run('pip install ' + wheel)
+    virtualenv.run(('pip', '--disable-pip-version-check', 'install', wheel))
     # And finally try to upgrade from source.
-    virtualenv.run('pip install --no-cache-dir --upgrade ' + sdist)
+    virtualenv.run(('pip', '--disable-pip-version-check', '--no-cache-dir',
+                    'install', '--upgrade', sdist))
 
 
 def test_test_command_install_requirements(virtualenv, tmpdir):
@@ -137,10 +129,10 @@ def test_test_command_install_requirements(virtualenv, tmpdir):
     Check the test command will install all required dependencies.
     """
     with locked_source_dir():
-        virtualenv.run(' && '.join((
-            'python -m pip install pip wheel',
-            'python -m pip install --no-use-pep517 -e {source}',
-        )).format(source=SOURCE_DIR))
+        virtualenv.run((
+            'pip', '--disable-pip-version-check',
+            'install', '--no-use-pep517', '-e', SOURCE_DIR,
+        ))
 
     def sdist(distname, version):
         dist_path = tmpdir.join('%s-%s.tar.gz' % (distname, version))
@@ -191,10 +183,7 @@ def test_test_command_install_requirements(virtualenv, tmpdir):
             open('success', 'w').close()
             '''))
     # Run test command for test package.
-    virtualenv.run(' && '.join((
-        'cd {tmpdir}',
-        'python setup.py test -s test',
-    )).format(tmpdir=tmpdir))
+    virtualenv.run(('python', 'setup.py', 'test', '-s', 'test'), cd=tmpdir)
     assert tmpdir.join('success').check()
 
 
@@ -204,7 +193,5 @@ def test_no_missing_dependencies(bare_virtualenv):
     """
     for command in ('upload',):  # sorted(distutils.command.__all__):
         with locked_source_dir():
-            bare_virtualenv.run(' && '.join((
-                'cd {source}',
-                'python setup.py {command} -h',
-            )).format(command=command, source=SOURCE_DIR))
+            bare_virtualenv.run(('python', 'setup.py', command, '-h'),
+                                cd=SOURCE_DIR)
