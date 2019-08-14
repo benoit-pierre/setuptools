@@ -90,29 +90,6 @@ class TestEasyInstallTest:
 
         assert script == expected
 
-    def test_no_find_links(self):
-        # new option '--no-find-links', that blocks find-links added at
-        # the project level
-        dist = Distribution()
-        cmd = ei.easy_install(dist)
-        cmd.check_pth_processing = lambda: True
-        cmd.no_find_links = True
-        cmd.find_links = ['link1', 'link2']
-        cmd.install_dir = os.path.join(tempfile.mkdtemp(), 'ok')
-        cmd.args = ['ok']
-        cmd.ensure_finalized()
-        assert cmd.package_index.scanned_urls == {}
-
-        # let's try without it (default behavior)
-        cmd = ei.easy_install(dist)
-        cmd.check_pth_processing = lambda: True
-        cmd.find_links = ['link1', 'link2']
-        cmd.install_dir = os.path.join(tempfile.mkdtemp(), 'ok')
-        cmd.args = ['ok']
-        cmd.ensure_finalized()
-        keys = sorted(cmd.package_index.scanned_urls.keys())
-        assert keys == ['link1', 'link2']
-
     def test_write_exception(self):
         """
         Test that `cant_write_to_target` is rendered as a DistutilsError.
@@ -390,23 +367,6 @@ class TestUserInstallTest:
             python_path = os.path.pathsep.join(sys.path)
             with mock.patch.dict(os.environ, PYTHONPATH=python_path):
                 yield target
-
-    def test_local_index(self, foo_package, install_target):
-        """
-        The local index must be used when easy_install locates installed
-        packages.
-        """
-        dist = Distribution()
-        dist.script_name = 'setup.py'
-        cmd = ei.easy_install(dist)
-        cmd.install_dir = install_target
-        cmd.args = ['foo']
-        cmd.ensure_finalized()
-        cmd.local_index.scan([foo_package])
-        res = cmd.easy_install('foo')
-        actual = os.path.normcase(os.path.realpath(res.location))
-        expected = os.path.normcase(os.path.realpath(foo_package))
-        assert actual == expected
 
     @contextlib.contextmanager
     def user_install_setup_context(self, *args, **kwargs):

@@ -12,7 +12,6 @@ __ https://setuptools.readthedocs.io/en/latest/easy_install.html
 """
 
 from glob import glob
-from distutils.util import get_platform
 from distutils.util import convert_path, subst_vars
 from distutils.errors import (
     DistutilsArgError, DistutilsOptionError,
@@ -27,7 +26,6 @@ import os
 import zipimport
 import shutil
 import tempfile
-import zipfile
 import re
 import stat
 import random
@@ -46,23 +44,18 @@ from sysconfig import get_config_vars, get_path
 from setuptools import SetuptoolsDeprecationWarning
 
 from setuptools.extern import six
-from setuptools.extern.six.moves import configparser, map
+from setuptools.extern.six.moves import map
 
 from setuptools import Command
 from setuptools.sandbox import run_setup
 from setuptools.py27compat import rmtree_safe
 from setuptools.command import setopt
 from setuptools.archive_util import unpack_archive
-from setuptools.package_index import (
-    PackageIndex, parse_requirement_arg, URL_SCHEME,
-)
 from setuptools.command import bdist_egg, egg_info
-from setuptools.wheel import Wheel
 from pkg_resources import (
     yield_lines, normalize_path, resource_string, ensure_directory,
-    get_distribution, find_distributions, Environment, Requirement,
-    Distribution, PathMetadata, EggMetadata, WorkingSet, DistributionNotFound,
-    VersionConflict, DEVELOP_DIST,
+    get_distribution, find_distributions, Environment, Distribution,
+    PathMetadata, EggMetadata,
 )
 import pkg_resources.py31compat
 
@@ -72,8 +65,7 @@ __metaclass__ = type
 warnings.filterwarnings("default", category=pkg_resources.PEP440Warning)
 
 __all__ = [
-    'samefile', 'easy_install', 'PthDistributions', 'extract_wininst_cfg',
-    'get_exe_prefixes',
+    'samefile', 'easy_install', 'PthDistributions',
 ]
 
 
@@ -133,13 +125,10 @@ class easy_install(Command):
         ('prefix=', None, "installation prefix"),
         ("zip-ok", "z", "install package as a zipfile"),
         ("multi-version", "m", "make apps have to require() a version"),
-        ("upgrade", "U", "force upgrade (searches PyPI for latest versions)"),
         ("install-dir=", "d", "install package to DIR"),
         ("script-dir=", "s", "install scripts to DIR"),
         ("exclude-scripts", "x", "Don't install scripts"),
         ("always-copy", "a", "Copy all needed packages to install dir"),
-        ("index-url=", "i", "base URL of Python Package Index"),
-        ("find-links=", "f", "additional URL(s) to search for packages"),
         ("build-directory=", "b",
          "download/extract/build in DIR; keep the results"),
         ('optimize=', 'O',
@@ -150,18 +139,13 @@ class easy_install(Command):
         ('always-unzip', 'Z', "don't install as a zipfile, no matter what"),
         ('site-dirs=', 'S', "list of directories where .pth files work"),
         ('editable', 'e', "Install specified packages in editable form"),
-        ('no-deps', 'N', "don't install dependencies"),
-        ('allow-hosts=', 'H', "pattern(s) that hostnames must match"),
-        ('local-snapshots-ok', 'l',
-         "allow building eggs from local checkouts"),
+        ('no-deps', 'N', "Deprecated, kept for backward compatibility with pip"),
         ('version', None, "print version information and exit"),
-        ('no-find-links', None,
-         "Don't load find-links defined in packages being installed")
     ]
     boolean_options = [
-        'zip-ok', 'multi-version', 'exclude-scripts', 'upgrade', 'always-copy',
+        'zip-ok', 'multi-version', 'exclude-scripts', 'always-copy',
         'editable',
-        'no-deps', 'local-snapshots-ok', 'version'
+        'no-deps', 'version'
     ]
 
     if site.ENABLE_USER_SITE:
@@ -170,21 +154,18 @@ class easy_install(Command):
         boolean_options.append('user')
 
     negative_opt = {'always-unzip': 'zip-ok'}
-    create_index = PackageIndex
 
     def initialize_options(self):
         # the --user option seems to be an opt-in one,
         # so the default should be False.
         self.user = 0
-        self.zip_ok = self.local_snapshots_ok = None
+        self.zip_ok = None
         self.install_dir = self.script_dir = self.exclude_scripts = None
-        self.index_url = None
-        self.find_links = None
         self.build_directory = None
         self.args = None
         self.optimize = self.record = None
-        self.upgrade = self.always_copy = self.multi_version = None
-        self.editable = self.no_deps = self.allow_hosts = None
+        self.always_copy = self.multi_version = None
+        self.editable = self.no_deps = None
         self.root = self.prefix = self.no_report = None
         self.version = None
         self.install_purelib = None  # for pure module distributions
@@ -201,13 +182,10 @@ class easy_install(Command):
         else:
             self.install_userbase = None
             self.install_usersite = None
-        self.no_find_links = None
 
         # Options not specifiable via command line
-        self.package_index = None
         self.pth_file = self.always_copy_from = None
         self.site_dirs = None
-        self.installed_projects = {}
         self.sitepy_installed = False
         # Always read easy_install options, even if we are subclassed, or have
         # an independent instance created.  This ensures that defaults will
@@ -286,9 +264,6 @@ class easy_install(Command):
         if self.script_dir is None:
             self.script_dir = self.install_dir
 
-        if self.no_find_links is None:
-            self.no_find_links = False
-
         # Let install_dir get set by install_lib command, which in turn
         # gets its info from the install command, and takes into account
         # --prefix and --home and all that other crud.
@@ -325,31 +300,11 @@ class easy_install(Command):
                     self.all_site_dirs.append(normalize_path(d))
         if not self.editable:
             self.check_site_dir()
-        self.index_url = self.index_url or "https://pypi.org/simple/"
         self.shadow_path = self.all_site_dirs[:]
         for path_item in self.install_dir, normalize_path(self.script_dir):
             if path_item not in self.shadow_path:
                 self.shadow_path.insert(0, path_item)
 
-        if self.allow_hosts is not None:
-            hosts = [s.strip() for s in self.allow_hosts.split(',')]
-        else:
-            hosts = ['*']
-        if self.package_index is None:
-            self.package_index = self.create_index(
-                self.index_url, search_path=self.shadow_path, hosts=hosts,
-            )
-        self.local_index = Environment(self.shadow_path + sys.path)
-
-        if self.find_links is not None:
-            if isinstance(self.find_links, six.string_types):
-                self.find_links = self.find_links.split()
-        else:
-            self.find_links = []
-        if self.local_snapshots_ok:
-            self.package_index.scan_egg_links(self.shadow_path + sys.path)
-        if not self.no_find_links:
-            self.package_index.add_find_links(self.find_links)
         self.set_undefined_options('install_lib', ('optimize', 'optimize'))
         if not isinstance(self.optimize, int):
             try:
@@ -415,7 +370,7 @@ class easy_install(Command):
             log.set_verbosity(self.verbose)
         try:
             for spec in self.args:
-                self.easy_install(spec, not self.no_deps)
+                self.easy_install(spec)
             if self.record:
                 outputs = self.outputs
                 if self.root:  # strip any package prefix
@@ -642,77 +597,22 @@ class easy_install(Command):
         finally:
             os.path.exists(tmpdir) and rmtree(rmtree_safe(tmpdir))
 
-    def easy_install(self, spec, deps=False):
+    def easy_install(self, dist):
         if not self.editable:
             self.install_site_py()
-
+        assert os.path.exists(dist)
         with self._tmpdir() as tmpdir:
-            if not isinstance(spec, Requirement):
-                if URL_SCHEME(spec):
-                    # It's a url, download it to tmpdir and process
-                    self.not_editable(spec)
-                    dl = self.package_index.download(spec, tmpdir)
-                    return self.install_item(None, dl, tmpdir, deps, True)
+            # Existing file or directory, just process it directly
+            self.not_editable(dist)
+            return self.install_item(dist, tmpdir)
 
-                elif os.path.exists(spec):
-                    # Existing file or directory, just process it directly
-                    self.not_editable(spec)
-                    return self.install_item(None, spec, tmpdir, deps, True)
-                else:
-                    spec = parse_requirement_arg(spec)
+    def install_item(self, dist, tmpdir):
 
-            self.check_editable(spec)
-            dist = self.package_index.fetch_distribution(
-                spec, tmpdir, self.upgrade, self.editable,
-                not self.always_copy, self.local_index
-            )
-            if dist is None:
-                msg = "Could not find suitable distribution for %r" % spec
-                if self.always_copy:
-                    msg += " (--always-copy skips system and development eggs)"
-                raise DistutilsError(msg)
-            elif dist.precedence == DEVELOP_DIST:
-                # .egg-info dists don't need installing, just process deps
-                self.process_distribution(spec, dist, deps, "Using")
-                return dist
-            else:
-                return self.install_item(spec, dist.location, tmpdir, deps)
+        log.info("Processing %s", os.path.basename(dist))
 
-    def install_item(self, spec, download, tmpdir, deps, install_needed=False):
-
-        # Installation is also needed if file in tmpdir or is not an egg
-        install_needed = install_needed or self.always_copy
-        install_needed = install_needed or os.path.dirname(download) == tmpdir
-        install_needed = install_needed or not download.endswith('.egg')
-        install_needed = install_needed or (
-            self.always_copy_from is not None and
-            os.path.dirname(normalize_path(download)) ==
-            normalize_path(self.always_copy_from)
-        )
-
-        if spec and not install_needed:
-            # at this point, we know it's a local .egg, we just don't know if
-            # it's already installed.
-            for dist in self.local_index[spec.project_name]:
-                if dist.location == download:
-                    break
-            else:
-                install_needed = True  # it's not in the local index
-
-        log.info("Processing %s", os.path.basename(download))
-
-        if install_needed:
-            dists = self.install_eggs(spec, download, tmpdir)
-            for dist in dists:
-                self.process_distribution(spec, dist, deps)
-        else:
-            dists = [self.egg_distribution(download)]
-            self.process_distribution(spec, dists[0], deps, "Using")
-
-        if spec is not None:
-            for dist in dists:
-                if dist in spec:
-                    return dist
+        dists = self.install_eggs(dist, tmpdir)
+        for dist in dists:
+            self.process_distribution(dist)
 
     def select_scheme(self, name):
         """Sets the install directories by applying the install schemes."""
@@ -723,44 +623,10 @@ class easy_install(Command):
             if getattr(self, attrname) is None:
                 setattr(self, attrname, scheme[key])
 
-    def process_distribution(self, requirement, dist, deps=True, *info):
+    def process_distribution(self, dist):
         self.update_pth(dist)
-        self.package_index.add(dist)
-        if dist in self.local_index[dist.key]:
-            self.local_index.remove(dist)
-        self.local_index.add(dist)
         self.install_egg_scripts(dist)
-        self.installed_projects[dist.key] = dist
-        log.info(self.installation_report(requirement, dist, *info))
-        if (dist.has_metadata('dependency_links.txt') and
-                not self.no_find_links):
-            self.package_index.add_find_links(
-                dist.get_metadata_lines('dependency_links.txt')
-            )
-        if not deps and not self.always_copy:
-            return
-        elif requirement is not None and dist.key != requirement.key:
-            log.warn("Skipping dependencies for %s", dist)
-            return  # XXX this is not the distribution we were looking for
-        elif requirement is None or dist not in requirement:
-            # if we wound up with a different version, resolve what we've got
-            distreq = dist.as_requirement()
-            requirement = Requirement(str(distreq))
-        log.info("Processing dependencies for %s", requirement)
-        try:
-            distros = WorkingSet([]).resolve(
-                [requirement], self.local_index, self.easy_install
-            )
-        except DistributionNotFound as e:
-            raise DistutilsError(str(e))
-        except VersionConflict as e:
-            raise DistutilsError(e.report())
-        if self.always_copy or self.always_copy_from:
-            # Force all the relevant distros to be copied or activated
-            for dist in distros:
-                if dist.key not in self.installed_projects:
-                    self.easy_install(dist.as_requirement())
-        log.info("Finished processing dependencies for %s", requirement)
+        log.info(self.installation_report(dist))
 
     def should_unzip(self, dist):
         if self.zip_ok is not None:
@@ -770,29 +636,6 @@ class easy_install(Command):
         if not dist.has_metadata('zip-safe'):
             return True
         return False
-
-    def maybe_move(self, spec, dist_filename, setup_base):
-        dst = os.path.join(self.build_directory, spec.key)
-        if os.path.exists(dst):
-            msg = (
-                "%r already exists in %s; build directory %s will not be kept"
-            )
-            log.warn(msg, spec.key, self.build_directory, setup_base)
-            return setup_base
-        if os.path.isdir(dist_filename):
-            setup_base = dist_filename
-        else:
-            if os.path.dirname(dist_filename) == setup_base:
-                os.unlink(dist_filename)  # get it out of the tmp dir
-            contents = os.listdir(setup_base)
-            if len(contents) == 1:
-                dist_filename = os.path.join(setup_base, contents[0])
-                if os.path.isdir(dist_filename):
-                    # if the only thing there is a directory, move it instead
-                    setup_base = dist_filename
-        ensure_directory(dst)
-        shutil.move(setup_base, dst)
-        return dst
 
     def install_wrapper_scripts(self, dist):
         if self.exclude_scripts:
@@ -845,14 +688,10 @@ class easy_install(Command):
             f.write(contents)
         chmod(target, 0o777 - mask)
 
-    def install_eggs(self, spec, dist_filename, tmpdir):
+    def install_eggs(self, dist_filename, tmpdir):
         # .egg dirs or files are already built, so just return them
         if dist_filename.lower().endswith('.egg'):
             return [self.install_egg(dist_filename, tmpdir)]
-        elif dist_filename.lower().endswith('.exe'):
-            return [self.install_exe(dist_filename, tmpdir)]
-        elif dist_filename.lower().endswith('.whl'):
-            return [self.install_wheel(dist_filename, tmpdir)]
 
         # Anything else, try to extract and build
         setup_base = tmpdir
@@ -860,10 +699,6 @@ class easy_install(Command):
             unpack_archive(dist_filename, tmpdir, self.unpack_progress)
         elif os.path.isdir(dist_filename):
             setup_base = os.path.abspath(dist_filename)
-
-        if (setup_base.startswith(tmpdir)  # something we downloaded
-                and self.build_directory and spec is not None):
-            setup_base = self.maybe_move(spec, dist_filename, setup_base)
 
         # Find the setup.py file
         setup_script = os.path.join(setup_base, 'setup.py')
@@ -884,7 +719,7 @@ class easy_install(Command):
 
         # Now run it, and return the result
         if self.editable:
-            log.info(self.report_editable(spec, setup_script))
+            log.info(self.report_editable(None, setup_script))
             return []
         else:
             return self.build_and_install(setup_script, setup_base)
@@ -951,133 +786,6 @@ class easy_install(Command):
         self.add_output(destination)
         return self.egg_distribution(destination)
 
-    def install_exe(self, dist_filename, tmpdir):
-        # See if it's valid, get data
-        cfg = extract_wininst_cfg(dist_filename)
-        if cfg is None:
-            raise DistutilsError(
-                "%s is not a valid distutils Windows .exe" % dist_filename
-            )
-        # Create a dummy distribution object until we build the real distro
-        dist = Distribution(
-            None,
-            project_name=cfg.get('metadata', 'name'),
-            version=cfg.get('metadata', 'version'), platform=get_platform(),
-        )
-
-        # Convert the .exe to an unpacked egg
-        egg_path = os.path.join(tmpdir, dist.egg_name() + '.egg')
-        dist.location = egg_path
-        egg_tmp = egg_path + '.tmp'
-        _egg_info = os.path.join(egg_tmp, 'EGG-INFO')
-        pkg_inf = os.path.join(_egg_info, 'PKG-INFO')
-        ensure_directory(pkg_inf)  # make sure EGG-INFO dir exists
-        dist._provider = PathMetadata(egg_tmp, _egg_info)  # XXX
-        self.exe_to_egg(dist_filename, egg_tmp)
-
-        # Write EGG-INFO/PKG-INFO
-        if not os.path.exists(pkg_inf):
-            f = open(pkg_inf, 'w')
-            f.write('Metadata-Version: 1.0\n')
-            for k, v in cfg.items('metadata'):
-                if k != 'target_version':
-                    f.write('%s: %s\n' % (k.replace('_', '-').title(), v))
-            f.close()
-        script_dir = os.path.join(_egg_info, 'scripts')
-        # delete entry-point scripts to avoid duping
-        self.delete_blockers([
-            os.path.join(script_dir, args[0])
-            for args in ScriptWriter.get_args(dist)
-        ])
-        # Build .egg file from tmpdir
-        bdist_egg.make_zipfile(
-            egg_path, egg_tmp, verbose=self.verbose, dry_run=self.dry_run,
-        )
-        # install the .egg
-        return self.install_egg(egg_path, tmpdir)
-
-    def exe_to_egg(self, dist_filename, egg_tmp):
-        """Extract a bdist_wininst to the directories an egg would use"""
-        # Check for .pth file and set up prefix translations
-        prefixes = get_exe_prefixes(dist_filename)
-        to_compile = []
-        native_libs = []
-        top_level = {}
-
-        def process(src, dst):
-            s = src.lower()
-            for old, new in prefixes:
-                if s.startswith(old):
-                    src = new + src[len(old):]
-                    parts = src.split('/')
-                    dst = os.path.join(egg_tmp, *parts)
-                    dl = dst.lower()
-                    if dl.endswith('.pyd') or dl.endswith('.dll'):
-                        parts[-1] = bdist_egg.strip_module(parts[-1])
-                        top_level[os.path.splitext(parts[0])[0]] = 1
-                        native_libs.append(src)
-                    elif dl.endswith('.py') and old != 'SCRIPTS/':
-                        top_level[os.path.splitext(parts[0])[0]] = 1
-                        to_compile.append(dst)
-                    return dst
-            if not src.endswith('.pth'):
-                log.warn("WARNING: can't process %s", src)
-            return None
-
-        # extract, tracking .pyd/.dll->native_libs and .py -> to_compile
-        unpack_archive(dist_filename, egg_tmp, process)
-        stubs = []
-        for res in native_libs:
-            if res.lower().endswith('.pyd'):  # create stubs for .pyd's
-                parts = res.split('/')
-                resource = parts[-1]
-                parts[-1] = bdist_egg.strip_module(parts[-1]) + '.py'
-                pyfile = os.path.join(egg_tmp, *parts)
-                to_compile.append(pyfile)
-                stubs.append(pyfile)
-                bdist_egg.write_stub(resource, pyfile)
-        self.byte_compile(to_compile)  # compile .py's
-        bdist_egg.write_safety_flag(
-            os.path.join(egg_tmp, 'EGG-INFO'),
-            bdist_egg.analyze_egg(egg_tmp, stubs))  # write zip-safety flag
-
-        for name in 'top_level', 'native_libs':
-            if locals()[name]:
-                txt = os.path.join(egg_tmp, 'EGG-INFO', name + '.txt')
-                if not os.path.exists(txt):
-                    f = open(txt, 'w')
-                    f.write('\n'.join(locals()[name]) + '\n')
-                    f.close()
-
-    def install_wheel(self, wheel_path, tmpdir):
-        wheel = Wheel(wheel_path)
-        assert wheel.is_compatible()
-        destination = os.path.join(self.install_dir, wheel.egg_name())
-        destination = os.path.abspath(destination)
-        if not self.dry_run:
-            ensure_directory(destination)
-        if os.path.isdir(destination) and not os.path.islink(destination):
-            dir_util.remove_tree(destination, dry_run=self.dry_run)
-        elif os.path.exists(destination):
-            self.execute(
-                os.unlink,
-                (destination,),
-                "Removing " + destination,
-            )
-        try:
-            self.execute(
-                wheel.install_as_egg,
-                (destination,),
-                ("Installing %s to %s") % (
-                    os.path.basename(wheel_path),
-                    os.path.dirname(destination)
-                ),
-            )
-        finally:
-            update_dist_caches(destination, fix_zipimporter_caches=False)
-        self.add_output(destination)
-        return self.egg_distribution(destination)
-
     __mv_warning = textwrap.dedent("""
         Because this distribution was installed --multi-version, before you can
         import modules from this package in an application, you will need to
@@ -1095,9 +803,9 @@ class easy_install(Command):
         PYTHONPATH, or by being added to sys.path by your code.)
         """)
 
-    def installation_report(self, req, dist, what="Installed"):
+    def installation_report(self, dist):
         """Helpful installation message for display to package users"""
-        msg = "\n%(what)s %(eggloc)s%(extras)s"
+        msg = "\nInstalled %(eggloc)s%(extras)s"
         if self.multi_version and not self.no_report:
             msg += '\n' + self.__mv_warning
             if self.install_dir not in map(normalize_path, sys.path):
@@ -1106,7 +814,7 @@ class easy_install(Command):
         eggloc = dist.location
         name = dist.project_name
         version = dist.version
-        extras = ''  # TODO: self.report_extras(req, dist)
+        extras = ''  # TODO
         return msg % locals()
 
     __editable_msg = textwrap.dedent("""
@@ -1180,7 +888,7 @@ class easy_install(Command):
         # to the setup.cfg file.
         ei_opts = self.distribution.get_option_dict('easy_install').copy()
         fetch_directives = (
-            'find_links', 'site_dirs', 'index_url', 'optimize', 'allow_hosts',
+            'find_links', 'site_dirs', 'index_url', 'optimize',
         )
         fetch_options = {}
         for key, val in ei_opts.items():
@@ -1493,86 +1201,6 @@ def expand_paths(inputs):
                         if not os.path.isdir(line):
                             continue
                         yield line, os.listdir(line)
-
-
-def extract_wininst_cfg(dist_filename):
-    """Extract configuration data from a bdist_wininst .exe
-
-    Returns a configparser.RawConfigParser, or None
-    """
-    f = open(dist_filename, 'rb')
-    try:
-        endrec = zipfile._EndRecData(f)
-        if endrec is None:
-            return None
-
-        prepended = (endrec[9] - endrec[5]) - endrec[6]
-        if prepended < 12:  # no wininst data here
-            return None
-        f.seek(prepended - 12)
-
-        tag, cfglen, bmlen = struct.unpack("<iii", f.read(12))
-        if tag not in (0x1234567A, 0x1234567B):
-            return None  # not a valid tag
-
-        f.seek(prepended - (12 + cfglen))
-        init = {'version': '', 'target_version': ''}
-        cfg = configparser.RawConfigParser(init)
-        try:
-            part = f.read(cfglen)
-            # Read up to the first null byte.
-            config = part.split(b'\0', 1)[0]
-            # Now the config is in bytes, but for RawConfigParser, it should
-            #  be text, so decode it.
-            config = config.decode(sys.getfilesystemencoding())
-            cfg.readfp(six.StringIO(config))
-        except configparser.Error:
-            return None
-        if not cfg.has_section('metadata') or not cfg.has_section('Setup'):
-            return None
-        return cfg
-
-    finally:
-        f.close()
-
-
-def get_exe_prefixes(exe_filename):
-    """Get exe->egg path translations for a given .exe file"""
-
-    prefixes = [
-        ('PURELIB/', ''),
-        ('PLATLIB/pywin32_system32', ''),
-        ('PLATLIB/', ''),
-        ('SCRIPTS/', 'EGG-INFO/scripts/'),
-        ('DATA/lib/site-packages', ''),
-    ]
-    z = zipfile.ZipFile(exe_filename)
-    try:
-        for info in z.infolist():
-            name = info.filename
-            parts = name.split('/')
-            if len(parts) == 3 and parts[2] == 'PKG-INFO':
-                if parts[1].endswith('.egg-info'):
-                    prefixes.insert(0, ('/'.join(parts[:2]), 'EGG-INFO/'))
-                    break
-            if len(parts) != 2 or not name.endswith('.pth'):
-                continue
-            if name.endswith('-nspkg.pth'):
-                continue
-            if parts[0].upper() in ('PURELIB', 'PLATLIB'):
-                contents = z.read(name)
-                if six.PY3:
-                    contents = contents.decode()
-                for pth in yield_lines(contents):
-                    pth = pth.strip().replace('\\', '/')
-                    if not pth.startswith('import'):
-                        prefixes.append((('%s/%s/' % (parts[0], pth)), ''))
-    finally:
-        z.close()
-    prefixes = [(x.lower(), y) for x, y in prefixes]
-    prefixes.sort()
-    prefixes.reverse()
-    return prefixes
 
 
 class PthDistributions(Environment):

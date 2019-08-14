@@ -2,7 +2,6 @@ from distutils.util import convert_path
 from distutils import log
 from distutils.errors import DistutilsError, DistutilsOptionError
 import os
-import glob
 import io
 
 from setuptools.extern import six
@@ -56,8 +55,6 @@ class develop(namespaces.DevelopInstaller, easy_install):
         easy_install.finalize_options(self)
         self.expand_basedirs()
         self.expand_dirs()
-        # pick up setup-dir .egg files only: no .egg-info
-        self.package_index.scan(glob.glob('*.egg'))
 
         egg_link_fn = ei.egg_name + '.egg-link'
         self.egg_link = os.path.join(self.install_dir, egg_link_fn)
@@ -153,7 +150,7 @@ class develop(namespaces.DevelopInstaller, easy_install):
                 f.write(self.egg_path + "\n" + self.setup_path)
         # postprocess the installed distro, fixing up .pth, installing scripts,
         # and handling requirements
-        self.process_distribution(None, self.dist, not self.no_deps)
+        self.process_distribution(self.dist)
 
     def uninstall_link(self):
         if os.path.exists(self.egg_link):

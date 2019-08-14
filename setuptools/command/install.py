@@ -102,9 +102,6 @@ class install(orig.install):
         cmd.ensure_finalized()  # finalize before bdist_egg munges install cmd
         cmd.always_copy_from = '.'  # make sure local-dir eggs get installed
 
-        # pick up setup-dir .egg files only: no .egg-info
-        cmd.package_index.scan(glob.glob('*.egg'))
-
         self.run_command('bdist_egg')
         args = [self.distribution.get_command_obj('bdist_egg').egg_output]
 
