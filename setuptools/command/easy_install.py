@@ -123,7 +123,6 @@ class easy_install(Command):
 
     user_options = [
         ('prefix=', None, "installation prefix"),
-        ("zip-ok", "z", "install package as a zipfile"),
         ("multi-version", "m", "make apps have to require() a version"),
         ("install-dir=", "d", "install package to DIR"),
         ("script-dir=", "s", "install scripts to DIR"),
@@ -136,14 +135,13 @@ class easy_install(Command):
          "-O2 for \"python -OO\", and -O0 to disable [default: -O0]"),
         ('record=', None,
          "filename in which to record list of installed files"),
-        ('always-unzip', 'Z', "don't install as a zipfile, no matter what"),
         ('site-dirs=', 'S', "list of directories where .pth files work"),
         ('editable', 'e', "Install specified packages in editable form"),
         ('no-deps', 'N', "Deprecated, kept for backward compatibility with pip"),
         ('version', None, "print version information and exit"),
     ]
     boolean_options = [
-        'zip-ok', 'multi-version', 'exclude-scripts', 'always-copy',
+        'multi-version', 'exclude-scripts', 'always-copy',
         'editable',
         'no-deps', 'version'
     ]
@@ -153,13 +151,10 @@ class easy_install(Command):
         user_options.append(('user', None, help_msg))
         boolean_options.append('user')
 
-    negative_opt = {'always-unzip': 'zip-ok'}
-
     def initialize_options(self):
         # the --user option seems to be an opt-in one,
         # so the default should be False.
         self.user = 0
-        self.zip_ok = None
         self.install_dir = self.script_dir = self.exclude_scripts = None
         self.build_directory = None
         self.args = None
@@ -628,15 +623,6 @@ class easy_install(Command):
         self.install_egg_scripts(dist)
         log.info(self.installation_report(dist))
 
-    def should_unzip(self, dist):
-        if self.zip_ok is not None:
-            return not self.zip_ok
-        if dist.has_metadata('not-zip-safe'):
-            return True
-        if not dist.has_metadata('zip-safe'):
-            return True
-        return False
-
     def install_wrapper_scripts(self, dist):
         if self.exclude_scripts:
             return
@@ -758,15 +744,9 @@ class easy_install(Command):
                         f, m = shutil.move, "Moving"
                     else:
                         f, m = shutil.copytree, "Copying"
-                elif self.should_unzip(dist):
+                else:
                     self.mkpath(destination)
                     f, m = self.unpack_and_compile, "Extracting"
-                else:
-                    new_dist_is_zipped = True
-                    if egg_path.startswith(tmpdir):
-                        f, m = shutil.move, "Moving"
-                    else:
-                        f, m = shutil.copy2, "Copying"
                 self.execute(
                     f,
                     (egg_path, destination),
