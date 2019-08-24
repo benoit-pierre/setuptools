@@ -136,11 +136,9 @@ class easy_install(Command):
          "filename in which to record list of installed files"),
         ('site-dirs=', 'S', "list of directories where .pth files work"),
         ('no-deps', 'N', "Deprecated, kept for backward compatibility with pip"),
-        ('version', None, "print version information and exit"),
     ]
     boolean_options = [
-        'multi-version', 'exclude-scripts',
-        'no-deps', 'version'
+        'multi-version', 'exclude-scripts', 'no-deps',
     ]
 
     if site.ENABLE_USER_SITE:
@@ -159,7 +157,6 @@ class easy_install(Command):
         self.multi_version = None
         self.no_deps = None
         self.root = self.prefix = self.no_report = None
-        self.version = None
         self.install_purelib = None  # for pure module distributions
         self.install_platlib = None  # non-pure (dists w/ extensions)
         self.install_headers = None  # for C/C++ headers
@@ -206,20 +203,7 @@ class easy_install(Command):
         remover = rmtree if is_tree else os.unlink
         remover(path)
 
-    @staticmethod
-    def _render_version():
-        """
-        Render the Setuptools version and installation details, then exit.
-        """
-        ver = sys.version[:3]
-        dist = get_distribution('setuptools')
-        tmpl = 'setuptools {dist.version} from {dist.location} (Python {ver})'
-        print(tmpl.format(**locals()))
-        raise SystemExit()
-
     def finalize_options(self):
-        self.version and self._render_version()
-
         py_version = sys.version.split()[0]
         prefix, exec_prefix = get_config_vars('prefix', 'exec_prefix')
 
