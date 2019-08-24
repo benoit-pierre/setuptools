@@ -135,13 +135,11 @@ class easy_install(Command):
         ('record=', None,
          "filename in which to record list of installed files"),
         ('site-dirs=', 'S', "list of directories where .pth files work"),
-        ('editable', 'e', "Install specified packages in editable form"),
         ('no-deps', 'N', "Deprecated, kept for backward compatibility with pip"),
         ('version', None, "print version information and exit"),
     ]
     boolean_options = [
         'multi-version', 'exclude-scripts',
-        'editable',
         'no-deps', 'version'
     ]
 
@@ -159,7 +157,7 @@ class easy_install(Command):
         self.args = None
         self.optimize = self.record = None
         self.multi_version = None
-        self.editable = self.no_deps = None
+        self.no_deps = None
         self.root = self.prefix = self.no_report = None
         self.version = None
         self.install_purelib = None  # for pure module distributions
@@ -292,8 +290,7 @@ class easy_install(Command):
                     )
                 else:
                     self.all_site_dirs.append(normalize_path(d))
-        if not self.editable:
-            self.check_site_dir()
+        self.check_site_dir()
         self.shadow_path = self.all_site_dirs[:]
         for path_item in self.install_dir, normalize_path(self.script_dir):
             if path_item not in self.shadow_path:
@@ -308,10 +305,6 @@ class easy_install(Command):
             except ValueError:
                 raise DistutilsOptionError("--optimize must be 0, 1, or 2")
 
-        if self.editable and not self.build_directory:
-            raise DistutilsArgError(
-                "Must specify a build directory (-b) when using --editable"
-            )
         if not self.args:
             raise DistutilsArgError(
                 "No urls, filenames, or requirements specified (see --help)")
@@ -564,24 +557,6 @@ class easy_install(Command):
         else:
             self.outputs.append(path)
 
-    def not_editable(self, spec):
-        if self.editable:
-            raise DistutilsArgError(
-                "Invalid argument %r: you can't use filenames or URLs "
-                "with --editable (except via the --find-links option)."
-                % (spec,)
-            )
-
-    def check_editable(self, spec):
-        if not self.editable:
-            return
-
-        if os.path.exists(os.path.join(self.build_directory, spec.key)):
-            raise DistutilsArgError(
-                "%r already exists in %s; can't do a checkout there" %
-                (spec.key, self.build_directory)
-            )
-
     @contextlib.contextmanager
     def _tmpdir(self):
         tmpdir = tempfile.mkdtemp(prefix=u"easy_install-")
@@ -592,12 +567,10 @@ class easy_install(Command):
             os.path.exists(tmpdir) and rmtree(rmtree_safe(tmpdir))
 
     def easy_install(self, dist):
-        if not self.editable:
-            self.install_site_py()
+        self.install_site_py()
         assert os.path.exists(dist)
         with self._tmpdir() as tmpdir:
             # Existing file or directory, just process it directly
-            self.not_editable(dist)
             return self.install_item(dist, tmpdir)
 
     def install_item(self, dist, tmpdir):
@@ -703,11 +676,7 @@ class easy_install(Command):
             setup_script = setups[0]
 
         # Now run it, and return the result
-        if self.editable:
-            log.info(self.report_editable(None, setup_script))
-            return []
-        else:
-            return self.build_and_install(setup_script, setup_base)
+        return self.build_and_install(setup_script, setup_base)
 
     def egg_distribution(self, egg_path):
         if os.path.isdir(egg_path):
@@ -795,22 +764,6 @@ class easy_install(Command):
         version = dist.version
         extras = ''  # TODO
         return msg % locals()
-
-    __editable_msg = textwrap.dedent("""
-        Extracted editable version of %(spec)s to %(dirname)s
-
-        If it uses setuptools in its setup script, you can activate it in
-        "development" mode by going to that directory and running::
-
-            %(python)s setup.py develop
-
-        See the setuptools documentation for the "develop" command for more info.
-        """).lstrip()
-
-    def report_editable(self, spec, setup_script):
-        dirname = os.path.dirname(setup_script)
-        python = sys.executable
-        return '\n' + self.__editable_msg % locals()
 
     def run_setup(self, setup_script, setup_base, args):
         sys.modules.setdefault('distutils.command.bdist_egg', bdist_egg)
