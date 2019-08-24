@@ -127,7 +127,6 @@ class easy_install(Command):
         ("install-dir=", "d", "install package to DIR"),
         ("script-dir=", "s", "install scripts to DIR"),
         ("exclude-scripts", "x", "Don't install scripts"),
-        ("always-copy", "a", "Copy all needed packages to install dir"),
         ("build-directory=", "b",
          "download/extract/build in DIR; keep the results"),
         ('optimize=', 'O',
@@ -141,7 +140,7 @@ class easy_install(Command):
         ('version', None, "print version information and exit"),
     ]
     boolean_options = [
-        'multi-version', 'exclude-scripts', 'always-copy',
+        'multi-version', 'exclude-scripts',
         'editable',
         'no-deps', 'version'
     ]
@@ -159,7 +158,7 @@ class easy_install(Command):
         self.build_directory = None
         self.args = None
         self.optimize = self.record = None
-        self.always_copy = self.multi_version = None
+        self.multi_version = None
         self.editable = self.no_deps = None
         self.root = self.prefix = self.no_report = None
         self.version = None
@@ -179,7 +178,7 @@ class easy_install(Command):
             self.install_usersite = None
 
         # Options not specifiable via command line
-        self.pth_file = self.always_copy_from = None
+        self.pth_file = None
         self.site_dirs = None
         self.sitepy_installed = False
         # Always read easy_install options, even if we are subclassed, or have
