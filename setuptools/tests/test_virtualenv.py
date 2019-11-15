@@ -185,7 +185,7 @@ def _check_test_command_install_requirements(virtualenv, tmpdir):
 
 def test_test_command_install_requirements(virtualenv, tmpdir):
     # Ensure pip/wheel packages are installed.
-    virtualenv.run('python -c \'__import__("pkg_resources").require(["pip", "wheel"])\'')
+    virtualenv.run("python -c \"__import__('pkg_resources').require(['pip', 'wheel'])\"")
     _check_test_command_install_requirements(virtualenv, tmpdir)
 
 def test_test_command_install_requirements_when_using_easy_install(bare_virtualenv, tmpdir):
